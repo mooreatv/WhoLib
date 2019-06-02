@@ -16,7 +16,7 @@ assert(LibStub, "LibWho-2.0 requires LibStub")
 
 
 local major_version = 'LibWho-2.0'
-local minor_version = tonumber("161") or 99999
+local minor_version = tonumber("168") or 99999
 
 local lib = LibStub:NewLibrary(major_version, minor_version)
 
@@ -520,29 +520,29 @@ function lib:ReturnWho()
 	local now = time()
 	local complete = (self.Total == #self.Result) and (self.Total < MAX_WHOS_FROM_SERVER)
 	for _,v in pairs(self.Result)do
-		if(self.Cache[v.fullName] == nil)then
-			self.Cache[v.fullName] = { inqueue = false, callback = {} }
+		if(self.Cache[v.Name] == nil)then
+			self.Cache[v.Name] = { inqueue = false, callback = {} }
 		end
 		
-		local cachedName = self.Cache[v.fullName]
+		local cachedName = self.Cache[v.Name]
 		
 		cachedName.valid = true -- is now valid
 		cachedName.data = v -- update data
 		cachedName.data.Online = true -- player is online
 		cachedName.last = now -- update timestamp
 		if(cachedName.inqueue)then
-			if(self.Args.info and self.CacheQueue[self.Args.query] == v.fullName)then
+			if(self.Args.info and self.CacheQueue[self.Args.query] == v.Name)then
 				-- found by the query which was created to -> remove us from query
 				self.CacheQueue[self.Args.query] = nil
 			else
 				-- found by another query
 				for k2,v2 in pairs(self.CacheQueue) do
-					if(v2 == v.fullName)then
+					if(v2 == v.Name)then
 						for i=self.WHOLIB_QUEUE_QUIET, self.WHOLIB_QUEUE_SCANNING do
 							for k3,v3 in pairs(self.Queue[i]) do
 								if(v3.query == k2 and v3.info)then
 									-- remove the query which was generated for this user, cause another query was faster...
-									dbg("Found '"..v.fullName.."' early via query '"..self.Args.query.."'")
+									dbg("Found '"..v.Name.."' early via query '"..self.Args.query.."'")
 									table.remove(self.Queue[i], k3)
 									self.CacheQueue[k2] = nil
 								end
@@ -551,9 +551,9 @@ function lib:ReturnWho()
 					end
 				end
 			end
-			dbg('Info(' .. v.fullName ..') returned: on')
+			dbg('Info(' .. v.Name ..') returned: on')
 			for _,v2 in pairs(cachedName.callback) do
-				self:RaiseCallback(v2, self:ReturnUserInfo(v.fullName))
+				self:RaiseCallback(v2, self:ReturnUserInfo(v.Name))
 			end
 			cachedName.callback = {}
 		end
@@ -929,11 +929,20 @@ function lib:ProcessWhoResults()
 	self.Result = self.Result or {}
 
 	local num
-	self.Total, num = C_FriendList.GetNumWhoResults()	--GetNumWhoResults()
+	self.Total, num = C_FriendList.GetNumWhoResults()
 	for i=1, num do
-	--	local charname, guildname, level, race, class, zone, nonlocalclass, sex = GetWhoInfo(i)
-	--	self.Result[i] = {Name=charname, Guild=guildname, Level=level, Race=race, Class=class, Zone=zone, NoLocaleClass=nonlocalclass, Sex=sex }
+	--	self.Result[i] = C_FriendList.GetWhoInfo(i)
 		local info = C_FriendList.GetWhoInfo(i)
+		--backwards compatibility START
+		info.Name=info.fullName
+		info.Guild=info.fullGuildName
+		info.Level=info.level
+		info.Race=info.raceStr
+		info.Class=info.classStr
+		info.Zone=info.area
+		info.NoLocaleClass=info.filename
+		info.Sex=info.gender
+		--backwards compatibility END
 		self.Result[i] = info
 	end
 	
@@ -967,3 +976,142 @@ for target,_ in pairs(lib['embeds']) do
 		lib:Embed(target)
 	end -- if
 end -- for
+
+
+---
+--- Old deprecated functions as of 8.1/1.13
+---
+
+local version, build, date, tocversion = GetBuildInfo()
+local isWoWClassic = tocversion >= 11302 and tocversion < 20000
+
+if isWoWClassic then
+
+-- Friend list API update
+
+  -- Use C_FriendList.GetNumFriends and C_FriendList.GetNumOnlineFriends instead
+  function GetNumFriends()
+    return C_FriendList.GetNumFriends(),
+      C_FriendList.GetNumOnlineFriends();
+  end
+ 
+  -- Use C_FriendList.GetFriendInfo or C_FriendList.GetFriendInfoByIndex instead
+  function GetFriendInfo(friend)
+    local info;
+    if type(friend) == "number" then
+      info = C_FriendList.GetFriendInfoByIndex(friend);
+    elseif type(friend) == "string" then
+      info = C_FriendList.GetFriendInfo(friend);
+    end
+ 
+    if info then
+      local chatFlag = "";
+      if info.dnd then
+        chatFlag = CHAT_FLAG_DND;
+      elseif info.afk then
+        chatFlag = CHAT_FLAG_AFK;
+      end
+      return info.name,
+        info.level,
+        info.className,
+        info.area,
+        info.connected,
+        chatFlag,
+        info.notes,
+        info.referAFriend,
+        info.guid;
+    end
+  end
+ 
+  -- Use C_FriendList.SetSelectedFriend instead
+  SetSelectedFriend = C_FriendList.SetSelectedFriend;
+ 
+  -- Use C_FriendList.GetSelectedFriend instead
+  GetSelectedFriend = C_FriendList.GetSelectedFriend;
+ 
+  -- Use C_FriendList.AddOrRemoveFriend instead
+  AddOrRemoveFriend = C_FriendList.AddOrRemoveFriend;
+ 
+  -- Use C_FriendList.AddFriend instead
+  AddFriend = C_FriendList.AddFriend;
+ 
+  -- Use C_FriendList.RemoveFriend or C_FriendList.RemoveFriendByIndex instead
+  function RemoveFriend(friend)
+    if type(friend) == "number" then
+      C_FriendList.RemoveFriendByIndex(friend);
+    elseif type(friend) == "string" then
+      C_FriendList.RemoveFriend(friend);
+    end
+  end
+ 
+  -- Use C_FriendList.ShowFriends instead
+  ShowFriends = C_FriendList.ShowFriends;
+ 
+  -- Use C_FriendList.SetFriendNotes or C_FriendList.SetFriendNotesByIndex instead
+  function SetFriendNotes(friend, notes)
+    if type(friend) == "number" then
+      C_FriendList.SetFriendNotesByIndex(friend, notes);
+    elseif type(friend) == "string" then
+      C_FriendList.SetFriendNotes(friend, notes);
+    end
+  end
+ 
+  -- Use C_FriendList.IsFriend instead. No longer accepts unit tokens.
+  IsCharacterFriend = C_FriendList.IsFriend;
+ 
+  -- Use C_FriendList.GetNumIgnores instead
+  GetNumIgnores = C_FriendList.GetNumIgnores;
+  GetNumIngores = C_FriendList.GetNumIgnores;
+ 
+  -- Use C_FriendList.GetIgnoreName instead
+  GetIgnoreName = C_FriendList.GetIgnoreName;
+ 
+  -- Use C_FriendList.SetSelectedIgnore instead
+  SetSelectedIgnore = C_FriendList.SetSelectedIgnore;
+ 
+  -- Use C_FriendList.GetSelectedIgnore instead
+  GetSelectedIgnore = C_FriendList.GetSelectedIgnore;
+ 
+  -- Use C_FriendList.AddOrDelIgnore instead
+  AddOrDelIgnore = C_FriendList.AddOrDelIgnore;
+ 
+  -- Use C_FriendList.AddIgnore instead
+  AddIgnore = C_FriendList.AddIgnore;
+ 
+  -- Use C_FriendList.DelIgnore or C_FriendList.DelIgnoreByIndex instead
+  function DelIgnore(friend)
+    if type(friend) == "number" then
+      C_FriendList.DelIgnoreByIndex(friend);
+    elseif type(friend) == "string" then
+      C_FriendList.DelIgnore(friend);
+    end
+  end
+ 
+  -- Use C_FriendList.IsIgnored or the new C_FriendList.IsIgnoredByGuid instead.
+  IsIgnored = C_FriendList.IsIgnored;
+ 
+  -- Use C_FriendList.SendWho instead
+  SendWho = C_FriendList.SendWho;
+ 
+  -- Use C_FriendList.GetNumWhoResults instead
+  GetNumWhoResults = C_FriendList.GetNumWhoResults;
+ 
+  -- Use C_FriendList.GetWhoInfo instead
+  function GetWhoInfo(index)
+    local info = C_FriendList.GetWhoInfo(index);
+    return info.fullName,
+      info.fullGuildName,
+      info.level,
+      info.raceStr,
+      info.classStr,
+      info.area,
+      info.filename,
+      info.gender;
+  end
+ 
+  -- Use C_FriendList.SetWhoToUi instead
+  SetWhoToUI = C_FriendList.SetWhoToUi;
+ 
+  -- Use C_FriendList.SortWho instead
+  SortWho = C_FriendList.SortWho;
+end
